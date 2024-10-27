@@ -107,8 +107,8 @@ def run_va():
         add_generation_prompt=True
     )
 
-    model_inputs = tokenizer([text], return_tensors="pt")  # Keep it on CPU
-    input_ids = model_inputs.input_ids  # No need to transfer to device (GPU)
+    model_inputs = tokenizer([text], return_tensors="pt") 
+    input_ids = model_inputs.input_ids
 
     generated_ids = model.generate(
         input_ids,
