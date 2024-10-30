@@ -1,34 +1,13 @@
-import speech_recognition as srec
 from gtts import gTTS
 import pyttsx3 as pyt
-import os
-
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import transformers
+from transformers import AutoTokenizer, AutoModelForCausalLM, VitsModel
 import torch
 
-import requests
-import json
+import whisper
+import sounddevice as sd
+import numpy as np
+from IPython.display import Audio
 
-engine = pyt.init()
-voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[1].id)
-
-device = "auto"
-
-# --- INDO MINSTRAL 7B MODEL ---
-
-# model = "indischepartij/MiaLatte-Indo-Mistral-7b"
-# tokenizer = AutoTokenizer.from_pretrained(model)
-
-# pipeline = transformers.pipeline(
-#     "text-generation",
-#     model=model,
-#     torch_dtype=torch.float16,
-#     device_map="auto",
-# )
-
-# --- AZURE SAILOR 0.5B MODEL ---
 
 model = AutoModelForCausalLM.from_pretrained(
     'sail/Sailor-0.5B-Chat',
@@ -39,60 +18,41 @@ tokenizer = AutoTokenizer.from_pretrained('sail/Sailor-0.5B-Chat')
 
 # --- STT ---
 
+whisper_model = whisper.load_model("small")
+
 def perintah():
-    mendengar = srec.Recognizer()
-    with srec.Microphone() as source:
-        print('Mendengarkan......')
-        suara = mendengar.listen(source, phrase_time_limit=5)
-        try:
-            print('Diterima.....')
-            dengar = mendengar.recognize_google(suara, language='id-ID')
-            print(dengar)
-        except:
-            pass
-        return dengar
+    duration = 5
+    sample_rate = 16000  
+
+    print("Mendengarkan......")
+    audio_data = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='float32')
+    sd.wait()  
+    print("Diterima.....")
+
+    audio_data = np.squeeze(audio_data)  
+    dengar = whisper_model.transcribe(audio_data, fp16=False, language="id")
+    print(dengar["text"])
+
+    return dengar["text"]
 
 # --- TTS ---
 
-# def ngomong(self):
-#     teks = (self)
-#     bahasa = 'id'
-#     namafile = 'Ngomong.mp3'
-#     def reading():
-#         suara = gTTS(text=teks, lang=bahasa, slow=False)
-#         suara.save(namafile)
-#         os.system(f'start {namafile}')
-#     reading()
+mms = VitsModel.from_pretrained("facebook/mms-tts-ind")
+mms_token = AutoTokenizer.from_pretrained("facebook/mms-tts-ind")
 
 def ngomong(text):
-    voices = engine.getProperty('voices')
+    inputs = mms_token(text, return_tensors="pt")
 
-    for voice in voices:
-        if "MSTTS_V110_idID_Andika" in voice.id:
-            engine.setProperty('voice', voice.id)
-            break
-
-    # Speak the text
-    engine.say(text)
+    with torch.no_grad():
+        output = mms(**inputs).waveform
     
-    # Wait until speaking is finished
-    engine.runAndWait()
+    return Audio(output.squeeze().cpu().numpy(), rate=16000) # Can change rate to make it faster/slower
 
 
 # --- RUNNING VOICE ASSISTANT ---
 def run_va():
     # prompt from user
     Layanan = perintah()
-
-    # messages = [{"role": "user", "content": Layanan}]
-    # prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
-    # outputs = pipeline(prompt, max_new_tokens=256, do_sample=True, temperature=0.7, top_k=50, top_p=0.95)
-    # print(outputs[0]["generated_text"])
-
-    # ngomong(Layanan)
-
-    # print(Layanan)
 
     system_prompt= 'Jawab dalam bahasa indonesia.'
 
@@ -123,10 +83,3 @@ def run_va():
     ngomong(response)
 
 run_va()
-
-# --- CHECK IF YOUR SYSTEM HAS INDONESIAN TTS ---
-# REFER TO https://stackoverflow.com/questions/56730889/pyttsx-isn-t-showing-installed-languages-on-windows-10
-
-# voices = engine.getProperty('voices')
-# for voice in voices:
-#     print(voice.id)
