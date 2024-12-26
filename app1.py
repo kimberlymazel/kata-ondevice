@@ -64,14 +64,11 @@ def generate_response(user_input):
 # --- Gradio UI ---
 def process_audio():
     """Handles transcription and response generation sequentially."""
-    # Step 1: Record and Transcribe
     audio_data = record_audio()
     transcription, transcription_time = transcribe_audio(audio_data)
 
-    # Show transcription immediately and simulate processing feedback
     yield f"{transcription} (Time: {round(transcription_time, 2)}s)"
 
-    # Step 2: Generate Response
     response, response_time = generate_response(transcription)
     yield transcription, f"{response} (Time: {round(response_time, 2)}s)"
 
@@ -79,7 +76,6 @@ def process_audio():
 with gr.Blocks() as demo:
     gr.Markdown("### Voice Assistant with Continuous Updates")
 
-    # UI Components
     with gr.Row():
         button = gr.Button("Record")
     with gr.Row():
@@ -87,7 +83,6 @@ with gr.Blocks() as demo:
     with gr.Row():
         response_output = gr.Textbox(label="Response", interactive=False)
 
-    # Single button click to process both transcription and response
     button.click(
         process_audio,
         inputs=None,
