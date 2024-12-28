@@ -1,0 +1,99 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import whisper
+import sounddevice as sd
+import numpy as np
+from transformers import AutoTokenizer, VitsModel
+from openai import OpenAI
+import torch
+from fastapi.middleware.cors import CORSMiddleware
+
+# Initialize FastAPI app
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Replace with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (POST, GET, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
+# Initialize OpenAI client
+client = OpenAI(
+    base_url="http://127.0.0.1:8080/v1",
+    api_key="sk-no-key-required"
+)
+
+# Load Whisper model for speech-to-text
+whisper_model = whisper.load_model("small")
+
+# Load MMS TTS model for text-to-speech
+mms = VitsModel.from_pretrained("facebook/mms-tts-ind")
+mms_tokenizer = AutoTokenizer.from_pretrained("facebook/mms-tts-ind")
+
+
+# Pydantic model for text input
+class TextInput(BaseModel):
+    text: str
+
+
+@app.post("/record")
+def record_audio():
+    """Record audio from the microphone and transcribe it."""
+    duration = 5  # Duration in seconds
+    sample_rate = 16000  # Sampling rate
+
+    try:
+        print("Recording audio...")
+        audio_data = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype="float32")
+        sd.wait()
+        print("Audio recorded.")
+
+        # Process audio with Whisper
+        audio_data = np.squeeze(audio_data)
+        transcription = whisper_model.transcribe(audio_data, fp16=False, language="id")
+        return {"text": transcription["text"]}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/respond")
+def generate_response(input: TextInput):
+    """Generate a response using the LLM."""
+    try:
+        completion = client.chat.completions.create(
+            model="LLaMA_CPP",
+            messages=[
+                {"role": "system", "content": "Tolong jawab dengan singkat"},
+                {"role": "user", "content": input.text}
+            ]
+        )
+        response = completion.choices[0].message.content
+        # Remove special tokens (e.g., <|eot_id|>)
+        cleaned_response = response.replace("<|eot_id|>", "").strip()
+        return {"response": cleaned_response}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/speak")
+def text_to_speech(input: TextInput):
+    """Convert text to speech and play the audio."""
+    try:
+        inputs = mms_tokenizer(input.text, return_tensors="pt")
+        with torch.no_grad():
+            output = mms(**inputs).waveform
+
+        # Convert waveform to audio and play
+        audio_array = output.squeeze().cpu().numpy()
+        sample_rate = 16000
+        sd.play(audio_array, sample_rate)
+        sd.wait()
+
+        return {"message": "Speech played successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
