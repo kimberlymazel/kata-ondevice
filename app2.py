@@ -1,17 +1,11 @@
 import gradio as gr
 import numpy as np
 import sounddevice as sd
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    QuantoConfig,
-    VitsModel,
-    AutoTokenizer as VitsTokenizer,
-)
+from transformers import AutoTokenizer, AutoModelForCausalLM, QuantoConfig
 import whisper
 import torch
 import time
-import asyncio
+import pyttsx3
 
 # --- Load Models ---
 model_id = "meta-llama/Llama-3.2-1B-Instruct"
@@ -21,16 +15,9 @@ model = AutoModelForCausalLM.from_pretrained(
     model_id, quantization_config=quantization_config, device_map="cpu"
 )
 whisper_model = whisper.load_model("small")
-mms = VitsModel.from_pretrained("facebook/mms-tts-ind")
-mms_token = VitsTokenizer.from_pretrained("facebook/mms-tts-ind")
 
-
-# --- TTS ---
-def ngomong(text):
-    inputs = mms_token(text, return_tensors="pt")
-    with torch.no_grad():
-        output = mms(**inputs).waveform
-        return output.squeeze().cpu().numpy()
+# Initialise TTS engine
+tts_engine = pyttsx3.init()
 
 
 # --- Helper Functions ---
@@ -43,7 +30,7 @@ def record_audio(duration=5, sample_rate=16000):
     return np.squeeze(audio_data)
 
 
-async def transcribe_audio(audio_data):
+def transcribe_audio(audio_data):
     """Transcribes the audio data using Whisper."""
     start_time = time.time()
     result = whisper_model.transcribe(audio_data, fp16=False, language="id")
@@ -51,7 +38,7 @@ async def transcribe_audio(audio_data):
     return result["text"], transcription_time
 
 
-async def generate_response(user_input):
+def generate_response(user_input):
     """Generates a response using the LLaMA model."""
     start_time = time.time()
     messages = [
@@ -78,32 +65,33 @@ async def generate_response(user_input):
     return response, response_time
 
 
+def say_response(response):
+    """Speaks the response using TTS."""
+    tts_engine.say(response)
+    tts_engine.runAndWait()
+
+
 # --- Gradio UI ---
-async def process_audio():
-    """Handles transcription, response generation, and TTS in parallel."""
-    # Step 1: Record audio
+def process_audio():
+    """Handles transcription and response generation sequentially."""
+    # Record audio
     audio_data = record_audio()
 
-    # Step 2: Start transcription and response generation in parallel
-    transcription_task = asyncio.create_task(transcribe_audio(audio_data))
-    transcription, transcription_time = await transcription_task
+    # Transcribe audio
+    transcription, transcription_time = transcribe_audio(audio_data)
+    yield transcription, None, f"Transcription Time: {round(transcription_time, 2)}s"
 
-    # Step 3: Yield transcription immediately
-    yield f"{transcription} (Time: {round(transcription_time, 2)}s)", None, None
+    # Generate response
+    response, response_time = generate_response(transcription)
+    yield transcription, response, f"Response Time: {round(response_time, 2)}s"
 
-    # Step 4: Generate response and convert it to speech
-    response_task = asyncio.create_task(generate_response(transcription))
-    response, response_time = await response_task
-    speech_waveform = ngomong(response)
-
-    # Step 5: Yield response and audio
-    yield transcription, f"{response} (Time: {round(response_time, 2)}s)", speech_waveform
+    # Speak the response after showing it
+    say_response(response)
 
 
 with gr.Blocks() as demo:
-    gr.Markdown("### Voice Assistant with Parallel Updates")
+    gr.Markdown("### Voice Assistant with Written and Spoken Responses")
 
-    # UI Components
     with gr.Row():
         button = gr.Button("Record")
     with gr.Row():
@@ -111,13 +99,12 @@ with gr.Blocks() as demo:
     with gr.Row():
         response_output = gr.Textbox(label="Response", interactive=False)
     with gr.Row():
-        audio_output = gr.Audio(label="Response Audio")
+        timing_output = gr.Textbox(label="Processing Time", interactive=False)
 
-    # Single button click to process both transcription and response
     button.click(
         process_audio,
         inputs=None,
-        outputs=[transcription_output, response_output, audio_output],
+        outputs=[transcription_output, response_output, timing_output],
     )
 
 # Launch the interface
