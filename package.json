@@ -1,0 +1,14 @@
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:llama\"",
+    "dev:frontend": "npm run dev --prefix ./app/frontend", 
+    "dev:backend": "uvicorn app.backend.app:app --reload",
+    "dev:llama": "node run-llamafile.js"
+  },
+
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
