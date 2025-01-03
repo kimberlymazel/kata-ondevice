@@ -7,8 +7,8 @@ const isWindows = os.platform() === "win32";
 
 // Define the command based on the OS
 const llamaCommand = isWindows
-  ? "seallms-v3-1.5b-chat-q4_0.exe" // Windows
-  : "./seallms-v3-1.5b-chat-q4_0"; // Unix-based executable
+  ? "seallms-v3-1.5b-chat-q6_k.exe" // Windows
+  : "./seallms-v3-1.5b-chat-q6_k"; // Unix-based executable
 
 // Execute the process
 const process = spawn(isWindows ? llamaCommand : "wine", isWindows ? [] : [llamaCommand], {
