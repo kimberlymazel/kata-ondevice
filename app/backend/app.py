@@ -7,6 +7,7 @@ from transformers import AutoTokenizer, VitsModel
 from openai import OpenAI
 import torch
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -32,11 +33,24 @@ whisper_model = whisper.load_model("small")
 mms = VitsModel.from_pretrained("facebook/mms-tts-ind")
 mms_tokenizer = AutoTokenizer.from_pretrained("facebook/mms-tts-ind")
 
+# In-memory conversation storage
+conversation_history = {}
+
 
 # Pydantic model for text input
 class TextInput(BaseModel):
     text: str
 
+class Message(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+class ConversationRequest(BaseModel):
+    user_id: str
+    message: str
+
+class ConversationResponse(BaseModel):
+    messages: List[Message]
 
 @app.post("/record")
 def record_audio():
@@ -57,26 +71,56 @@ def record_audio():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@app.post("/conversation", response_model=ConversationResponse)
+def manage_conversation(input: ConversationRequest):
+    """Manage conversation with context."""
+    user_id = input.user_id
 
+    # Initialize user history if not present
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
 
-@app.post("/respond")
-def generate_response(input: TextInput):
-    """Generate a response using the LLM."""
+    # Add user message to history
+    conversation_history[user_id].append({"role": "user", "content": input.message})
+
+    # Generate assistant response
     try:
         completion = client.chat.completions.create(
             model="LLaMA_CPP",
-            messages=[
-                {"role": "system", "content": "Tolong jawab dengan singkat"},
-                {"role": "user", "content": input.text}
-            ]
+            messages=conversation_history[user_id]
         )
-        response = completion.choices[0].message.content
-        # Remove special tokens (e.g., <|eot_id|>)
-        cleaned_response = response.replace("<|eot_id|>", "").strip()
-        return {"response": cleaned_response}
+        assistant_response = completion.choices[0].message.content.strip()
+
+        # Add assistant response to history
+        conversation_history[user_id].append({"role": "assistant", "content": assistant_response})
+
+        # Return updated conversation history
+        return {"messages": conversation_history[user_id]}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @app.post("/respond")
+# def generate_response(input: TextInput):
+#     """Generate a response using the LLM."""
+#     try:
+#         completion = client.chat.completions.create(
+#             model="LLaMA_CPP",
+#             messages=[
+#                 {"role": "system", "content": "Tolong jawab dengan singkat"},
+#                 {"role": "user", "content": input.text}
+#             ]
+#         )
+#         response = completion.choices[0].message.content
+#         # Remove special tokens (e.g., <|eot_id|>)
+#         cleaned_response = response.replace("<|eot_id|>", "").strip()
+#         return {"response": cleaned_response}
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/speak")
