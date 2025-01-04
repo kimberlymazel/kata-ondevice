@@ -4,24 +4,61 @@ import axios from "axios";
 
 function App() {
   const [userInput, setUserInput] = useState("");
-  const [assistantResponse, setAssistantResponse] = useState("");
   const [status, setStatus] = useState("idle"); // 'idle', 'listening', 'processing', 'talking'
+  const [conversationHistory, setConversationHistory] = useState([
+    { role: "assistant", content: "Apa yang bisa saya bantu?" },
+  ]);
+  const [countdown, setCountdown] = useState(0);
+  const userId = "user-123";
 
   const handleRecordAndRespond = async () => {
+    const listeningDuration = 5; // Duration in seconds (same as backend)
+    setCountdown(listeningDuration);
     setStatus("listening");
+
+    // Countdown timer
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setStatus("processing"); // processing immediately after listening ends
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     try {
       const recordResponse = await axios.post("http://127.0.0.1:8000/record");
-      setUserInput(recordResponse.data.text);
+      const userMessage = recordResponse.data.text;
+      setUserInput(userMessage);
 
-      setStatus("processing");
-      const response = await axios.post("http://127.0.0.1:8000/respond", {
-        text: recordResponse.data.text,
+      setConversationHistory((prev) => {
+        const updatedHistory = prev.slice();
+        if (updatedHistory.length === 1 && updatedHistory[0].role === "assistant") {
+          updatedHistory.shift(); // Remove the initial prompt
+        }
+        updatedHistory.push({ role: "user", content: userMessage });
+        return updatedHistory;
       });
-      setAssistantResponse(response.data.response);
+
+      const response = await axios.post("http://127.0.0.1:8000/conversation", {
+        user_id: userId,
+        message: userMessage,
+      });
+
+      const assistantMessage = response.data.messages.at(-1).content;
+
+      // Add response to conversation history
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: "assistant", content: assistantMessage },
+      ]);
 
       setStatus("talking");
+
       await axios.post("http://127.0.0.1:8000/speak", {
-        text: response.data.response,
+        text: assistantMessage,
       });
 
       setStatus("idle");
@@ -43,20 +80,25 @@ function App() {
         )}
       </div>
       <div className="chat-interface">
-        <p>
-          <strong>You:</strong> {userInput}
-        </p>
-        <p>
-          <strong>Assistant:</strong> {assistantResponse}
-        </p>
+        <div className="chat-history">
+          {conversationHistory.map((message, index) => (
+            <p
+              key={index}
+              className={`message ${message.role === "user" ? "user" : "assistant"}`}
+            >
+              <strong>{message.role === "user" ? "Anda" : "Asisten"}:</strong>{" "}
+              {message.content}
+            </p>
+          ))}
+        </div>
         <button onClick={handleRecordAndRespond} disabled={status !== "idle"}>
           {status === "idle"
-            ? "Start"
+            ? "Mulai"
             : status === "listening"
-            ? "Listening..."
+            ? `Mendengarkan... (${countdown})`
             : status === "processing"
-            ? "Processing..."
-            : "Talking..."}
+            ? "Memproses..."
+            : "Berbicara..."}
         </button>
       </div>
     </div>
