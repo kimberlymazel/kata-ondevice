@@ -28,7 +28,7 @@ body, html {
   font-weight: bold;
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
-  top: 5%;
+  top: 2%;
   left: 50%;
   transform: translate(-50%, 0);
   text-shadow: 0 0 5px rgba(255, 255, 255, 0.6),
@@ -144,6 +144,7 @@ body, html {
 .chat-interface {
   width: 90%;
   max-width: 800px;
+  max-height: 45%;
   padding: 20px;
   background: rgba(25, 25, 60, 0.85);
   border-radius: 20px;
@@ -177,7 +178,7 @@ button:disabled {
 }
 
 .chat-history {
-  max-height: 300px;
+  max-height: 75%;
   overflow-y: auto;
   padding: 10px;
   margin-bottom: 10px;
