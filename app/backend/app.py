@@ -8,6 +8,7 @@ from openai import OpenAI
 import torch
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
+import time
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -59,6 +60,7 @@ def record_audio():
     sample_rate = 16000  # Sampling rate
 
     try:
+        start_time = time.perf_counter()
         print("Recording audio...")
         audio_data = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype="float32")
         sd.wait()
@@ -67,7 +69,13 @@ def record_audio():
         # Process audio with Whisper
         audio_data = np.squeeze(audio_data)
         transcription = whisper_model.transcribe(audio_data, fp16=False, language="id")
-        return {"text": transcription["text"]}
+        end_time = time.perf_counter()
+        print(f"ASR Time: {(end_time-start_time):.4f} seconds")
+        return {
+            "text": transcription["text"],
+            "time_taken_seconds": end_time - start_time
+        }
+        
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -87,6 +95,8 @@ def manage_conversation(input: ConversationRequest):
 
     # Generate assistant response
     try:
+        start_time = time.perf_counter()
+
         completion = client.chat.completions.create(
             model="LLaMA_CPP",
             messages=conversation_history[user_id]
@@ -98,8 +108,14 @@ def manage_conversation(input: ConversationRequest):
         # Add assistant response to history
         conversation_history[user_id].append({"role": "assistant", "content": cleaned_response})
 
+        end_time = time.perf_counter()
+        print(f"LLM Time: {(end_time-start_time):.4f} seconds")
+
         # Return updated conversation history
-        return {"messages": conversation_history[user_id]}
+        return {
+            "messages": conversation_history[user_id],
+            "time_taken_seconds": end_time - start_time    
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -129,6 +145,7 @@ def manage_conversation(input: ConversationRequest):
 def text_to_speech(input: TextInput):
     """Convert text to speech and play the audio."""
     try:
+        start_time = time.perf_counter()
         inputs = mms_tokenizer(input.text, return_tensors="pt")
         with torch.no_grad():
             output = mms(**inputs).waveform
@@ -139,7 +156,13 @@ def text_to_speech(input: TextInput):
         sd.play(audio_array, sample_rate)
         sd.wait()
 
-        return {"message": "Speech played successfully"}
+        end_time = time.perf_counter()
+        print(f"TTS: {(end_time-start_time):.4f} seconds")
+
+        return {
+            "message": "Speech played successfully",
+            "time_taken_seconds": end_time - start_time
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
