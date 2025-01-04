@@ -92,9 +92,11 @@ def manage_conversation(input: ConversationRequest):
             messages=conversation_history[user_id]
         )
         assistant_response = completion.choices[0].message.content.strip()
+        # Remove special tokens (e.g., <|eot_id|>)
+        cleaned_response = assistant_response.replace("<|eot_id|>", "").strip()
 
         # Add assistant response to history
-        conversation_history[user_id].append({"role": "assistant", "content": assistant_response})
+        conversation_history[user_id].append({"role": "assistant", "content": cleaned_response})
 
         # Return updated conversation history
         return {"messages": conversation_history[user_id]}
