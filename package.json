@@ -2,7 +2,7 @@
   "name": "my-app",
   "version": "1.0.0",
   "scripts": {
-    "dev": "npm run install:all && concurrently \"npm run dev:requirements\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:llama\"",
+    "dev": "npm run install:all && npm run dev:requirements && concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:llama\"",
     "dev:frontend": "npm run dev --prefix ./app/frontend", 
     "dev:backend": "uvicorn app.backend.app:app --reload",
     "dev:llama": "node run-llamafile.js",
