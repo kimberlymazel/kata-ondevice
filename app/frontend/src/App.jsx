@@ -86,7 +86,6 @@ function App() {
               key={index}
               className={`message ${message.role === "user" ? "user" : "assistant"}`}
             >
-              <strong>{message.role === "user" ? "Anda" : "Asisten"}:</strong>{" "}
               {message.content}
             </p>
           ))}
