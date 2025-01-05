@@ -93,6 +93,10 @@ def manage_conversation(input: ConversationRequest):
     # Add user message to history
     conversation_history[user_id].append({"role": "user", "content": input.message})
 
+    # Add system-level instruction for brevity if not already present
+    if not any(msg["role"] == "system" for msg in conversation_history[user_id]):
+        conversation_history[user_id].insert(0, {"role": "system", "content": "Tolong jawab kurang dari 30 kata."})
+
     # Generate assistant response
     try:
         start_time = time.perf_counter()
@@ -119,6 +123,7 @@ def manage_conversation(input: ConversationRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # @app.post("/respond")
