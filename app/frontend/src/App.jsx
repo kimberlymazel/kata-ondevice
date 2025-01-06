@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import axios from "axios";
 
@@ -10,6 +10,14 @@ function App() {
   ]);
   const [countdown, setCountdown] = useState(0);
   const userId = "user-123";
+
+  const chatHistoryRef = useRef(null);
+
+  useEffect(() => {
+    if (chatHistoryRef.current) {
+      chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
+    }
+  }, [conversationHistory]);
 
   const handleRecordAndRespond = async () => {
     const listeningDuration = 5; // Duration in seconds (same as backend)
@@ -80,7 +88,7 @@ function App() {
         )}
       </div>
       <div className="chat-interface">
-        <div className="chat-history">
+        <div className="chat-history" ref={chatHistoryRef}>
           {conversationHistory.map((message, index) => (
             <p
               key={index}
